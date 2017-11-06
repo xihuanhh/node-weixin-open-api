@@ -140,8 +140,15 @@ exports.init = (wxConfig) => {
           let r = http.post(url, {
             json: true
           }, (error, response, body) => {
-            // console.log(body)
-            cb(error, body)
+            if (error) {
+              console.log(error)
+              cb(error, null)
+            } else if (body.errcode) {
+              console.log(body.errmsg)
+              cb(body.errmsg, null)
+            } else {
+              cb(null, body)
+            }
           })
           r.form().append('file', fileBuffer, {
             filename: 'myFile.png',
@@ -153,6 +160,8 @@ exports.init = (wxConfig) => {
         let now = +new Date()
         if (error) {
           console.log(error)
+        } else {
+          console.log(result.upload)
         }
         fn(null, `<xml><ToUserName><![CDATA[${to}]]></ToUserName><FromUserName><![CDATA[${from}]]></FromUserName><CreateTime>${now}</CreateTime><MsgType><![CDATA[${type}]]></MsgType>${mediaInfo}</xml>`)
       })
@@ -260,6 +269,36 @@ exports.init = (wxConfig) => {
     }, fn)
   }
 
+  // 根据openId获取用户信息
+  sdk.getProfile = (openId, fn) => {
+    async.auto({
+      getAccessToken,
+      profile: ['getAccessToken', (dummy, cb) => {
+        let url = `${wxConfig.domain}/cgi-bin/user/info?access_token=${sdk.accessToken}&openid=${openId}&lang=zh_CN`
+        http.post(url, {
+          json: true
+        }, (error, response, body) => {
+          if (error) {
+            cb(error, {})
+          } else {
+            if (body.errcode) {
+              cb(body.errmsg, {})
+            } else {
+              cb(null, body)
+            }
+          }
+        })
+      }]
+    }, (error, result) => {
+      if (error) {
+        fn(error, {})
+      } else {
+        fn(null, result.profile)
+      }
+    })
+  }
+
+  // 获取带参数的二维码，返回一个buffer
   sdk.getMPQRCode = (sceneId, fn) => {
     async.auto({
       getAccessToken,
