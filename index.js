@@ -289,7 +289,8 @@ exports.init = (wxConfig) => {
         })
       }],
       qrCode: ['ticket', (results, cb) => {
-        let url = `${wxConfig.domain}/cgi-bin/showqrcode?ticket=${results.ticket}`
+        // 注意：这个地方不要傻逼呵呵的用${wxConfig.domain} 这个是mp.weixin.qq.com 再说一遍，这个是 mp.weixin.qq.com
+        let url = `https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=${results.ticket}`
         console.log(url)
           http.get(url, {
             encoding: null
