@@ -32,6 +32,8 @@ let generateSign = (obj) => {
   return crypto.createHash('sha1').update(params.join('&')).digest('hex')
 }
 
+exports.generateSign = generateSign
+
 // private: 刷新token
 let getAccessToken = function (fn) {
   if (new Date().getTime() > sdk.expressTime) {
@@ -98,7 +100,8 @@ exports.init = (wxConfig) => {
     accessToken: '',
     expressTime: 0,
     jsApiTicket: '',
-    domain: wxConfig.domain
+    domain: wxConfig.domain,
+    debug: wxConfig.debug
   }
 
   sdk.parseXml = (xmlString, fn) => {
@@ -193,8 +196,8 @@ exports.init = (wxConfig) => {
     let appId     = sdk.appId
     let noncestr  = getNonceStr()
     let timestamp = getTimeStamp()
-    getJsApiTicket((error, jsApiTicket) => {
-      let signature = generateSign({jsApiTicket, noncestr, timestamp, url})
+    getJsApiTicket((error, jsapi_ticket) => {
+      let signature = generateSign({jsapi_ticket, noncestr, timestamp, url})
       cb(error, {
         debug,
         appId,
