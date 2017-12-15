@@ -187,6 +187,51 @@ module.exports = () => {
         })
       }
 
+      // 用户授权 获取SNS信息 需要跳转的方式为 snsapi_userinfo
+      sdk.oAuthSNS = (code, fn) => {
+        async.auto({
+          auth: (cb) => {
+            http.get(`${wxConfig.domain}/sns/oauth2/access_token`, {
+              qs: {
+                appid: sdk.appId,
+                secret: sdk.appSecret,
+                code,
+                grant_type: 'authorization_code'
+              },
+              json: true
+            }, (error, response, body) => {
+              if (error) {
+                cb(error, null)
+              } else {
+                if (body.errcode) {
+                  cb(body.errcode, null)
+                } else {
+                  cb(null, body)
+                }
+              }
+            })
+          },
+          profile: ['auth', (results, cb) => {
+            let url = `${wxConfig.domain}/sns/userinfo?access_token=${results.auth.access_token}&openid=${results.auth.openid}&lang=zh_CN`
+            http.get(url, {
+              json: true
+            }, (error, response, body) => {
+              if (error) {
+                cb(error, {})
+              } else {
+                if (body.errcode) {
+                  cb(body.errmsg, {})
+                } else {
+                  cb(null, body)
+                }
+              }
+            })
+          }]
+        }, (error, result) => {
+          fn(error, result.profile)
+        })
+      }
+
       sdk.getConfigParams = (url, debug, jsApiList, cb) => {
         let appId     = sdk.appId
         let noncestr  = getNonceStr()
@@ -267,7 +312,7 @@ module.exports = () => {
         }, fn)
       }
 
-      // 根据openId获取用户信息
+      // 根据openId获取用户信息（这个是获取关注过公众号的用户的Profile）
       sdk.getProfile = (openId, fn) => {
         async.auto({
           getAccessToken,
