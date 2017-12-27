@@ -4,6 +4,7 @@ let http = require('request')
 let async = require('async')
 let moment = require('moment')
 let parseString = require('xml2js').parseString
+let fs = require('fs')
 
 module.exports = () => {
   return {
@@ -13,7 +14,8 @@ module.exports = () => {
         appId: wxConfig.appId,
         appSecret: wxConfig.appSecret,
         accessToken: '',
-        expressTime: 0,
+        expireTime: 0,
+        expireTimeJS: 0,
         jsApiTicket: '',
         domain: wxConfig.domain,
         debug: wxConfig.debug
@@ -35,18 +37,33 @@ module.exports = () => {
         return noceStr
       }
 
-// private: 参数签名
+      // private: 参数签名
       let generateSign = (obj) => {
         let params = Object.keys(obj).sort().map(key => `${key}=` + obj[key])
         return crypto.createHash('sha1').update(params.join('&')).digest('hex')
       }
 
-// exports.generateSign = generateSign
+      // exports.generateSign = generateSign
 
-// private: 刷新token
+      // private: 刷新token
       let getAccessToken = function (fn) {
-        if (new Date().getTime() > sdk.expressTime) {
-          // 如果token超时，或者没有token(expressTime 初始值为0)
+        // 先取一下accessToken
+        let tokenFileExists = fs.existsSync(`./tokens/${sdk.appId}.accessToken`)
+        if (tokenFileExists) {
+          let fsContent = fs.readFileSync(`./tokens/${sdk.appId}.accessToken`).toString()
+          fsContent = JSON.parse(fsContent)
+          sdk.expireTime = fsContent.expireTime
+          sdk.accessToken = fsContent.accessToken
+        } else {
+          let fh = fs.openSync(__dirname + `/tokens/${sdk.appId}.accessToken`, 'w')
+          fs.writeFileSync(fh, JSON.stringify({expireTime: 0, accessToken: ''}))
+          fs.closeSync(fh)
+          sdk.expireTime = 0
+          sdk.accessToken = ''
+        }
+
+        if (new Date().getTime() > sdk.expireTime) {
+          // 如果token超时，或者没有token(expireTime 初始值为0)
           // 则开始获取token
           let url = `${sdk.domain}/cgi-bin/token?grant_type=client_credential&appid=${sdk.appId}&secret=${sdk.appSecret}`
           http.get(url, {json: true}, (error, response, body) => {
@@ -55,7 +72,12 @@ module.exports = () => {
               fn('accessTokenError', null)
             } else {
               sdk.accessToken = body.access_token
-              sdk.expressTime = new Date().getTime() + body.expires_in * 1000
+              // expires_in 是微信返回过多久会超时，现在是7200秒
+              // 2017-12-27 cwu
+              sdk.expireTime = new Date().getTime() + body.expires_in * 1000
+              let fh = fs.openSync(__dirname + `/tokens/${sdk.appId}.accessToken`, 'w')
+              fs.writeFileSync(fh, JSON.stringify({expireTime: sdk.expireTime, accessToken: sdk.accessToken}))
+              fs.closeSync(fh)
               fn(null, sdk.accessToken)
             }
           })
@@ -65,7 +87,7 @@ module.exports = () => {
       }
 
       let getJsApiTicket = (fn) => {
-        if(new Date().getTime() > sdk.expressTime || sdk.jsApiTicket == ''){
+        if(new Date().getTime() > sdk.expireTimeJS){
           //如果超时了，或者还没刷新过
           async.series([
             getAccessToken,
@@ -79,7 +101,7 @@ module.exports = () => {
                     // TODO: 核实一下 有没有这个errmsg
                     cb(body.errmsg, null)
                   } else {
-                    cb(null, body.ticket)
+                    cb(null, body)
                   }
                 }
               })
@@ -89,7 +111,9 @@ module.exports = () => {
               console.log('jsApiTicket Error %s', error)
               fn(error, null)
             }else{
-              sdk.jsApiTicket = result[1]
+              // 整完了更新一下过期时间和ticket
+              sdk.jsApiTicket = result[1]['ticket']
+              sdk.expireTimeJS = new Date().getTime() + result[1]['expires_in'] * 1000
               fn(null, sdk.jsApiTicket)
             }
           })
@@ -130,6 +154,7 @@ module.exports = () => {
       // 回复图片消息
       // 首先将图片上传到微信服务器
       // type: 图片（image）、语音（voice）、视频（video）和缩略图（thumb）
+      // 这里直接返回了需要返回给用户的xml结构
       sdk.media = (from, to, type, fileBuffer, fn) => {
         async.auto({
           getAccessToken,
@@ -154,14 +179,16 @@ module.exports = () => {
             })
           }]
         }, (error, result) => {
-          let mediaInfo = `<Image><MediaId><![CDATA[${result.upload.media_id}]]></MediaId></Image>`
           let now = +new Date()
           if (error) {
-            console.log(error)
+            console.log('send media error:')
+            console.log('accesstoken: %s expireTime: %s', sdk.accessToken, sdk.expireTime)
+            fn(null, `<xml><ToUserName><![CDATA[${to}]]></ToUserName><FromUserName><![CDATA[${from}]]></FromUserName><CreateTime>${now}</CreateTime><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[获取失败，请重试！]]></Content></xml>`)
           } else {
-            console.log(result.upload)
+            // console.log(result.upload)
+            let mediaInfo = `<Image><MediaId><![CDATA[${result.upload.media_id}]]></MediaId></Image>`
+            fn(null, `<xml><ToUserName><![CDATA[${to}]]></ToUserName><FromUserName><![CDATA[${from}]]></FromUserName><CreateTime>${now}</CreateTime><MsgType><![CDATA[${type}]]></MsgType>${mediaInfo}</xml>`)
           }
-          fn(null, `<xml><ToUserName><![CDATA[${to}]]></ToUserName><FromUserName><![CDATA[${from}]]></FromUserName><CreateTime>${now}</CreateTime><MsgType><![CDATA[${type}]]></MsgType>${mediaInfo}</xml>`)
         })
       }
 
