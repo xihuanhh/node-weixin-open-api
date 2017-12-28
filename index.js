@@ -21,18 +21,21 @@ module.exports = () => {
         debug: wxConfig.debug
       }
 
+      let accessTokenFile = __dirname + `/tokens/${sdk.appId}.accessToken`
+      let jsTicketFile = __dirname + `/tokens/${sdk.appId}.jsTicket`
+
       //返回 timeStamp
-      let getTimeStamp = function () {
+      let getTimeStamp = () => {
         return moment().format('X')
       }
 
       // private: 构造nonceStr
-      let getNonceStr = function(){
-        var $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-        var maxPos = $chars.length
-        var noceStr = ""
-        for (var i = 0; i < 32; i++) {
-          noceStr += $chars.charAt(Math.floor(Math.random() * maxPos));
+      let getNonceStr = () => {
+        let $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+        let maxPos = $chars.length
+        let noceStr = ""
+        for (let i = 0; i < 32; i++) {
+          noceStr += $chars.charAt(Math.floor(Math.random() * maxPos))
         }
         return noceStr
       }
@@ -48,14 +51,14 @@ module.exports = () => {
       // private: 刷新token
       let getAccessToken = function (fn) {
         // 先取一下accessToken
-        let tokenFileExists = fs.existsSync(`./tokens/${sdk.appId}.accessToken`)
+        let tokenFileExists = fs.existsSync(accessTokenFile)
         if (tokenFileExists) {
-          let fsContent = fs.readFileSync(`./tokens/${sdk.appId}.accessToken`).toString()
+          let fsContent = fs.readFileSync(accessTokenFile).toString()
           fsContent = JSON.parse(fsContent)
           sdk.expireTime = fsContent.expireTime
           sdk.accessToken = fsContent.accessToken
         } else {
-          let fh = fs.openSync(__dirname + `/tokens/${sdk.appId}.accessToken`, 'w')
+          let fh = fs.openSync(accessTokenFile, 'w')
           fs.writeFileSync(fh, JSON.stringify({expireTime: 0, accessToken: ''}))
           fs.closeSync(fh)
           sdk.expireTime = 0
@@ -75,7 +78,7 @@ module.exports = () => {
               // expires_in 是微信返回过多久会超时，现在是7200秒
               // 2017-12-27 cwu
               sdk.expireTime = new Date().getTime() + body.expires_in * 1000
-              let fh = fs.openSync(__dirname + `/tokens/${sdk.appId}.accessToken`, 'w')
+              let fh = fs.openSync(accessTokenFile, 'w')
               fs.writeFileSync(fh, JSON.stringify({expireTime: sdk.expireTime, accessToken: sdk.accessToken}))
               fs.closeSync(fh)
               fn(null, sdk.accessToken)
@@ -87,6 +90,21 @@ module.exports = () => {
       }
 
       let getJsApiTicket = (fn) => {
+
+        let jsTicketFileExists = fs.existsSync(jsTicketFile)
+        if (jsTicketFileExists) {
+          let fsContent = fs.readFileSync(jsTicketFile).toString()
+          fsContent = JSON.parse(fsContent)
+          sdk.expireTimeJS = fsContent.expireTimeJS
+          sdk.jsApiTicket = fsContent.jsApiTicket
+        } else {
+          let fh = fs.openSync(jsTicketFile, 'w')
+          fs.writeFileSync(fh, JSON.stringify({expireTimeJS: 0, jsApiTicket: ''}))
+          fs.closeSync(fh)
+          sdk.expireTimeJS = 0
+          sdk.jsApiTicket = ''
+        }
+
         if(new Date().getTime() > sdk.expireTimeJS){
           //如果超时了，或者还没刷新过
           async.series([
@@ -114,6 +132,11 @@ module.exports = () => {
               // 整完了更新一下过期时间和ticket
               sdk.jsApiTicket = result[1]['ticket']
               sdk.expireTimeJS = new Date().getTime() + result[1]['expires_in'] * 1000
+              // 持久化
+              let fh = fs.openSync(jsTicketFile, 'w')
+              fs.writeFileSync(fh, JSON.stringify({expireTimeJS: sdk.expireTimeJS, jsApiTicket: sdk.jsApiTicket}))
+              fs.closeSync(fh)
+
               fn(null, sdk.jsApiTicket)
             }
           })
