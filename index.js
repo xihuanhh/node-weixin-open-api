@@ -5,6 +5,7 @@ let async = require('async')
 let moment = require('moment')
 let parseString = require('xml2js').parseString
 let fs = require('fs')
+let axios = require('axios')
 
 module.exports = () => {
   return {
@@ -236,6 +237,43 @@ module.exports = () => {
           }
         })
       }
+
+      // 获取已创建标签
+
+      // {
+      //   "tags":[
+      //   {
+      //     "id":1,
+      //     "name":"每天一罐可乐星人",
+      //     "count":0
+      //   },
+      //   {
+      //     "id":2,
+      //     "name":"星标组",
+      //     "count":0
+      //   },
+      //   {
+      //     "id":127,
+      //     "name":"广东",
+      //     "count":5
+      //   }
+      // ]
+      // }
+      sdk.getTags = () => {
+        return axios.get(`https://api.weixin.qq.com/cgi-bin/tags/get?access_token=${sdk.accessToken}`)
+      }
+
+      // 批量为用户打标签
+      // 一次最多为50个openIds打标签
+      sdk.addTag = (openid_list, tagid) => {
+        let url = `https://api.weixin.qq.com/cgi-bin/tags/members/batchtagging?access_token=${sdk.accessToken}`
+        return axios.post(url, {
+          openid_list,
+          tagid
+        })
+      }
+
+
 
       // 用户授权 获取SNS信息 需要跳转的方式为 snsapi_userinfo
       sdk.oAuthSNS = (code, fn) => {
