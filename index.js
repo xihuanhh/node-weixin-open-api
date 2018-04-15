@@ -90,6 +90,19 @@ module.exports = () => {
         }
       }
 
+      // get access token的同步版本
+      let getAccessTokenSync = () => {
+        return new Promise((resolve, reject) => {
+          getAccessToken((error, result) => {
+            if (error) {
+              reject(error)
+            } else {
+              resolve(result)
+            }
+          })
+        })
+      }
+
       let getJsApiTicket = (fn) => {
 
         let jsTicketFileExists = fs.existsSync(jsTicketFile)
@@ -259,13 +272,23 @@ module.exports = () => {
       //   }
       // ]
       // }
-      sdk.getTags = () => {
+      sdk.getTags = async () => {
+        try {
+          await getAccessTokenSync()
+        } catch (e) {
+          //
+        }
         return axios.get(`https://api.weixin.qq.com/cgi-bin/tags/get?access_token=${sdk.accessToken}`)
       }
 
       // 批量为用户打标签
       // 一次最多为50个openIds打标签
-      sdk.addTag = (openid_list, tagid) => {
+      sdk.addTag = async (openid_list, tagid) => {
+        try {
+          await getAccessTokenSync()
+        } catch (e) {
+          //
+        }
         let url = `https://api.weixin.qq.com/cgi-bin/tags/members/batchtagging?access_token=${sdk.accessToken}`
         return axios.post(url, {
           openid_list,
