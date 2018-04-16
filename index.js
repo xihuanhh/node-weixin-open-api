@@ -4,8 +4,8 @@ let http = require('request')
 let async = require('async')
 let moment = require('moment')
 let parseString = require('xml2js').parseString
-let fs = require('fs')
 let axios = require('axios')
+let token = require('./libs/token')
 
 module.exports = () => {
   return {
@@ -19,11 +19,19 @@ module.exports = () => {
         expireTimeJS: 0,
         jsApiTicket: '',
         domain: wxConfig.domain,
-        debug: wxConfig.debug
+        debug: wxConfig.debug,
+        redisConfig: wxConfig.redisConfig
       }
 
-      let accessTokenFile = __dirname + `/tokens/${sdk.appId}.accessToken`
-      let jsTicketFile = __dirname + `/tokens/${sdk.appId}.jsTicket`
+
+
+      let updateToken, getToken
+
+      if (sdk.redisConfig) {
+        token.setRedisStore(sdk)
+      } else {
+        token.setFileStore(sdk)
+      }
 
       //返回 timeStamp
       let getTimeStamp = () => {
@@ -50,44 +58,30 @@ module.exports = () => {
       // exports.generateSign = generateSign
 
       // private: 刷新token
-      let getAccessToken = function (fn) {
+      let getAccessToken = (fn) => {
         // 先取一下accessToken
-        let tokenFileExists = fs.existsSync(accessTokenFile)
-        if (tokenFileExists) {
-          let fsContent = fs.readFileSync(accessTokenFile).toString()
-          fsContent = JSON.parse(fsContent)
-          sdk.expireTime = fsContent.expireTime
-          sdk.accessToken = fsContent.accessToken
-        } else {
-          let fh = fs.openSync(accessTokenFile, 'w')
-          fs.writeFileSync(fh, JSON.stringify({expireTime: 0, accessToken: ''}))
-          fs.closeSync(fh)
-          sdk.expireTime = 0
-          sdk.accessToken = ''
-        }
-
-        if (new Date().getTime() > sdk.expireTime) {
-          // 如果token超时，或者没有token(expireTime 初始值为0)
-          // 则开始获取token
-          let url = `${sdk.domain}/cgi-bin/token?grant_type=client_credential&appid=${sdk.appId}&secret=${sdk.appSecret}`
-          http.get(url, {json: true}, (error, response, body) => {
-            if (error) {
-              console.log('ERROR: accessToken generate error: %s', error)
-              fn('accessTokenError', null)
-            } else {
-              sdk.accessToken = body.access_token
-              // expires_in 是微信返回过多久会超时，现在是7200秒
-              // 2017-12-27 cwu
-              sdk.expireTime = new Date().getTime() + body.expires_in * 1000
-              let fh = fs.openSync(accessTokenFile, 'w')
-              fs.writeFileSync(fh, JSON.stringify({expireTime: sdk.expireTime, accessToken: sdk.accessToken}))
-              fs.closeSync(fh)
-              fn(null, sdk.accessToken)
-            }
-          })
-        } else {
-          fn(null, sdk.accessToken)
-        }
+        token.getAccessToken((error, accessToken) => {
+          sdk.accessToken = accessToken.accessToken
+          sdk.expireTime = accessToken.expireTime
+          if (new Date().getTime() > sdk.expireTime) {
+            // 如果token超时，或者没有token(expireTime 初始值为0)
+            // 则开始获取token
+            let url = `${sdk.domain}/cgi-bin/token?grant_type=client_credential&appid=${sdk.appId}&secret=${sdk.appSecret}`
+            http.get(url, {json: true}, (error, response, body) => {
+              if (error) {
+                console.log('ERROR: accessToken generate error: %s', error)
+                fn('accessTokenError', null)
+              } else {
+                let accessToken = token.setAccessToken(body.access_token, body.expires_in)
+                sdk.accessToken = accessToken.accessToken
+                sdk.expireTime = accessToken.expireTime
+                fn(null, sdk.accessToken)
+              }
+            })
+          } else {
+            fn(null, sdk.accessToken)
+          }
+        })
       }
 
       // get access token的同步版本
@@ -104,60 +98,45 @@ module.exports = () => {
       }
 
       let getJsApiTicket = (fn) => {
-
-        let jsTicketFileExists = fs.existsSync(jsTicketFile)
-        if (jsTicketFileExists) {
-          let fsContent = fs.readFileSync(jsTicketFile).toString()
-          fsContent = JSON.parse(fsContent)
-          sdk.expireTimeJS = fsContent.expireTimeJS
-          sdk.jsApiTicket = fsContent.jsApiTicket
-        } else {
-          let fh = fs.openSync(jsTicketFile, 'w')
-          fs.writeFileSync(fh, JSON.stringify({expireTimeJS: 0, jsApiTicket: ''}))
-          fs.closeSync(fh)
-          sdk.expireTimeJS = 0
-          sdk.jsApiTicket = ''
-        }
-
-        if(new Date().getTime() > sdk.expireTimeJS){
-          //如果超时了，或者还没刷新过
-          async.series([
-            getAccessToken,
-            (cb) => {
-              let url = `https://api.weixin.qq.com/cgi-bin/ticket/getticket?access_token=${sdk.accessToken}&type=jsapi`
-              http.get(url, {json: true}, (error, response, body) => {
-                if(error){
-                  cb(error, null)
-                }else{
-                  if (body.errcode) {
-                    // TODO: 核实一下 有没有这个errmsg
-                    cb(body.errmsg, null)
-                  } else {
-                    cb(null, body)
+        // 先获取一下jsApiTicket
+        token.getJSTicket((error, jsTicket) => {
+          sdk.expireTimeJS = jsTicket.expireTime
+          sdk.jsApiTicket = jsTicket.jsApiTicket
+          if(new Date().getTime() > sdk.expireTimeJS){
+            //如果超时了，或者还没刷新过
+            async.series([
+              getAccessToken,
+              (cb) => {
+                let url = `https://api.weixin.qq.com/cgi-bin/ticket/getticket?access_token=${sdk.accessToken}&type=jsapi`
+                http.get(url, {json: true}, (error, response, body) => {
+                  if(error){
+                    cb(error, null)
+                  }else{
+                    if (body.errcode) {
+                      // TODO: 核实一下 有没有这个errmsg
+                      cb(body.errmsg, null)
+                    } else {
+                      cb(null, body)
+                    }
                   }
-                }
-              })
-            }
-          ], (error, result) => {
-            if(error){
-              console.log('jsApiTicket Error %s', error)
-              fn(error, null)
-            }else{
-              // 整完了更新一下过期时间和ticket
-              sdk.jsApiTicket = result[1]['ticket']
-              sdk.expireTimeJS = new Date().getTime() + result[1]['expires_in'] * 1000
-              // 持久化
-              let fh = fs.openSync(jsTicketFile, 'w')
-              fs.writeFileSync(fh, JSON.stringify({expireTimeJS: sdk.expireTimeJS, jsApiTicket: sdk.jsApiTicket}))
-              fs.closeSync(fh)
-
-              fn(null, sdk.jsApiTicket)
-            }
-          })
-        } else {
-          // 如果没有过期
-          fn(null, sdk.jsApiTicket)
-        }
+                })
+              }
+            ], (error, result) => {
+              if(error){
+                console.log('jsApiTicket Error %s', error)
+                fn(error, null)
+              }else{
+                let jsTicket = token.setJSTicket(result[1]['ticket'], result[1]['expires_in'])
+                sdk.jsApiTicket = jsTicket.jsApiTicket
+                sdk.expireTimeJS = jsTicket.expireTime
+                fn(null, sdk.jsApiTicket)
+              }
+            })
+          } else {
+            // 如果没有过期
+            fn(null, sdk.jsApiTicket)
+          }
+        })
       }
 
       sdk.parseXml = (xmlString, fn) => {
