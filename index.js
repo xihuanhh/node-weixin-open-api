@@ -516,6 +516,81 @@ module.exports = () => {
           }]
         }, fn)
       }
+
+      // 静默授权
+      // 静默授权后,session中自然会带openId
+      sdk.auth = (req, res, next) => {
+        const { URL } = require('url')
+        if (req.session.openId) {
+          next()
+        } else {
+          let {code} = req.query
+          if (code) {
+            sdk.oAuth(code, async (error, result) => {
+              if (!error) {
+                req.session.openId = result
+                next()
+              } else {
+                const originUrl = new URL('http://' + req.hostname + req.originalUrl)
+                originUrl.searchParams.delete('code')
+                let searchParams = originUrl.searchParams.toString()
+                let url = `${originUrl.origin}${originUrl.pathname}?${searchParams}`
+                res.redirect(`https://open.weixin.qq.com/connect/oauth2/authorize?appid=${wxConfig.appId}&redirect_uri=${url}&response_type=code&scope=snsapi_base&state=rta#wechat_redirect`)
+              }
+            })
+          } else {
+            let url = `http://${req.hostname}${req.originalUrl}`
+            res.redirect(`https://open.weixin.qq.com/connect/oauth2/authorize?appid=${wxConfig.appId}&redirect_uri=${url}&response_type=code&scope=snsapi_base&state=rta#wechat_redirect`)
+          }
+        }
+      }
+
+      // 带信息的授权
+      sdk.snsAuth = (req, res, next) => {
+        const { URL } = require('url')
+        let {code} = req.query
+        if (req.session.headImageUrl) {
+          // 如果session中已经加载过headImageUrl表示已经做个SNA授权
+          next()
+        } else {
+          if (code) {
+            sdk.oAuthSNS(code, (error, result) => {
+              if (!error) {
+                req.session.openId = result.openid
+                req.session.nickName = result.nickname
+                req.session.sex = result.sex === 2 ? 0 : result.sex
+                req.session.headImageUrl = result.headimgurl
+                next()
+              } else {
+                const originUrl = new URL('http://' + req.hostname + req.originalUrl)
+                originUrl.searchParams.delete('code')
+                let searchParams = originUrl.searchParams.toString()
+                let url = `${originUrl.origin}${originUrl.pathname}?${searchParams}`
+                res.redirect(`https://open.weixin.qq.com/connect/oauth2/authorize?appid=${wxConfig.appId}&redirect_uri=${url}&response_type=code&scope=snsapi_userinfo&state=rta#wechat_redirect`)
+              }
+            })
+          } else {
+            let url = `http://${req.hostname}${req.originalUrl}`
+            res.redirect(`https://open.weixin.qq.com/connect/oauth2/authorize?appid=${wxConfig.appId}&redirect_uri=${url}&response_type=code&scope=snsapi_userinfo&state=rta#wechat_redirect`)
+          }
+        }
+      }
+      // 仅仅在第一次接入的时候有用，以后用不上了
+      sdk.verifyEcho = (req, res) => {
+        let {signature, timestamp, nonce, echostr} = req.query
+
+        sdk.checkSign(signature, timestamp, nonce, (error) => {
+          if (error) {
+            res.send('error')
+          } else {
+            if (null === echostr) {
+              res.send('error')
+            } else {
+              res.send(echostr)
+            }
+          }
+        })
+      }
       return sdk
     }
   }
