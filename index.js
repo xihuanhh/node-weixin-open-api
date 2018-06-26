@@ -560,6 +560,7 @@ module.exports = () => {
                 req.session.nickName = result.nickname
                 req.session.sex = result.sex === 2 ? 0 : result.sex
                 req.session.headImageUrl = result.headimgurl
+                req.session.wxProfile = result
                 next()
               } else {
                 const originUrl = new URL('http://' + req.hostname + req.originalUrl)
