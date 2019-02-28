@@ -3,6 +3,7 @@ let fs = require('fs')
 let redis = require("redis")
 
 let accessTokenFile, jsticketTokenFile, redisClient // 用来做文件存储的文件名
+let appId
 
 exports.setFileStore = (sdk) => {
   accessTokenFile = __dirname + `/../tokens/${sdk.appId}.accessToken`
@@ -29,25 +30,27 @@ exports.setFileStore = (sdk) => {
 // {host: '127.0.0.1', port: 6379}
 exports.setRedisStore = (sdk) => {
   store = 'redis'
+  // 这里记录下appId
+  appId = sdk.appId
   redisClient = redis.createClient(sdk.redisConfig)
-  redisClient.get('expireTimeJS', (error, reply) => {
+  redisClient.get(`expireTimeJS_${appId}`, (error, reply) => {
     if (!reply) {
-      redisClient.set("expireTimeJS", 0)
+      redisClient.set(`expireTimeJS_${appId}`, 0)
     }
   })
-  redisClient.get('expireTime', (error, reply) => {
+  redisClient.get(`expireTime_${appId}`, (error, reply) => {
     if (!reply) {
-      redisClient.set("expireTime", 0)
+      redisClient.set(`expireTime_${appId}`, 0)
     }
   })
-  redisClient.get('accessToken', (error, reply) => {
+  redisClient.get(`accessToken_${appId}`, (error, reply) => {
     if (!reply) {
-      redisClient.set("accessToken", '')
+      redisClient.set(`accessToken_${appId}`, '')
     }
   })
-  redisClient.get('jsApiTicket', (error, reply) => {
+  redisClient.get(`jsApiTicket_${appId}`, (error, reply) => {
     if (!reply) {
-      redisClient.set("jsApiTicket", '')
+      redisClient.set(`jsApiTicket_${appId}`, '')
     }
   })
 }
@@ -62,9 +65,9 @@ exports.getAccessToken = (cb) => {
   } else {
     // redis
     let accessToken, expireTime
-    redisClient.get('accessToken', (error, reply) => {
+    redisClient.get(`accessToken_${appId}`, (error, reply) => {
       accessToken = reply
-      redisClient.get('expireTime', (error, reply) => {
+      redisClient.get(`expireTime_${appId}`, (error, reply) => {
         expireTime = reply
         cb(null, {accessToken, expireTime})
       })
@@ -82,9 +85,9 @@ exports.getJSTicket = (cb) => {
   } else {
     // redis
     let expireTime, jsApiTicket
-    redisClient.get('jsApiTicket', (error, reply) => {
+    redisClient.get(`jsApiTicket_${appId}`, (error, reply) => {
       jsApiTicket = reply
-      redisClient.get('expireTimeJS', (error, reply) => {
+      redisClient.get(`expireTimeJS_${appId}`, (error, reply) => {
         expireTime = reply
         cb(null, {jsApiTicket, expireTime})
       })
@@ -104,8 +107,8 @@ exports.setAccessToken = (accessToken, expireTime) => {
     return {expireTime, accessToken}
   } else {
     // redis
-    redisClient.set("accessToken", accessToken)
-    redisClient.set("expireTime", expireTime)
+    redisClient.set(`accessToken_${appId}`, accessToken)
+    redisClient.set(`expireTime_${appId}`, expireTime)
     return {expireTime, accessToken}
   }
 }
@@ -123,8 +126,8 @@ exports.setJSTicket = (jsApiTicket, expireTime) => {
     return {expireTime, jsApiTicket}
   } else {
     // redis
-    redisClient.set("jsApiTicket", jsApiTicket)
-    redisClient.set("expireTimeJS", expireTime)
+    redisClient.set(`jsApiTicket_${appId}`, jsApiTicket)
+    redisClient.set(`expireTimeJS_${appId}`, expireTime)
     return {expireTime, jsApiTicket}
   }
 }

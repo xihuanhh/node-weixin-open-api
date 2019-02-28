@@ -62,5 +62,43 @@ eMsv84eavHiaiceqxibJxCfHe/0",
 ```
 
 微信 JS 接口签名校验工具
-
 https://mp.weixin.qq.com/debug/cgi-bin/sandbox?t=jsapisign
+
+
+# vue前端使用如下方式
+
+```javascript
+router.beforeEach((to, from, next) => {
+  // 每次在切换路由之前要看下有没有微信授权
+  router.app.$getAsync('/login').then(data => {
+    if (data.data.data.isLoggedIn) {
+      next()
+    } else {
+      let backUrl = encodeURIComponent(`${Conf.frontDomain}${to.path}`)
+      window.location.href = `${Conf.apiDomain}/wxAuth?backUrl=${backUrl}`
+    }
+  })
+})
+```
+
+# 后端使用如下方式跳转
+
+```javascript
+router.get('/wxAuth', weixinSdk.auth, (req, res) => {
+	let openId = req.session.openId
+	let redirectUrl = req.query.backUrl
+  try {
+    // 做用户setup的工作
+	  let {openId, nickName, headImageUrl, sex} = req.session
+	  const [user, created] = await models.couponOrderUser.findOrCreate({
+		  where:{
+			  openId
+		  }
+	  })
+	  req.session.userId = user.id
+	  res.redirect(redirectUrl)
+  } catch (e) {
+	  res.redirect(redirectUrl)
+  }
+})
+```
