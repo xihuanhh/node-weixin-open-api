@@ -72,7 +72,7 @@ module.exports = () => {
                 console.log('ERROR: accessToken generate error: %s', error)
                 fn('accessTokenError', null)
               } else {
-                console.log('accessToken generate: %s', body.access_token)
+                console.log('accessToken generate: %s', body.access_token, body)
                 let accessToken = token.setAccessToken(body.access_token, body.expires_in)
                 sdk.accessToken = accessToken.accessToken
                 sdk.expireTime = accessToken.expireTime
