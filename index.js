@@ -60,25 +60,24 @@ module.exports = () => {
       // private: 刷新token
       let getAccessToken = (fn) => {
         // 先取一下accessToken
-        token.getAccessToken((error, accessToken) => {
+        token.getAccessToken(async (error, accessToken) => {
           sdk.accessToken = accessToken.accessToken
           sdk.expireTime = accessToken.expireTime
           if (new Date().getTime() > sdk.expireTime) {
             // 如果token超时，或者没有token(expireTime 初始值为0)
             // 则开始获取token
             let url = `${sdk.domain}/cgi-bin/token?grant_type=client_credential&appid=${sdk.appId}&secret=${sdk.appSecret}`
-            http.get(url, {json: true}, (error, response, body) => {
-              if (error) {
-                console.log('ERROR: accessToken generate error: %s', error)
-                fn('accessTokenError', null)
-              } else {
-                console.log('accessToken generate: %s', body.access_token, body)
-                let accessToken = token.setAccessToken(body.access_token, body.expires_in)
-                sdk.accessToken = accessToken.accessToken
-                sdk.expireTime = accessToken.expireTime
-                fn(null, sdk.accessToken)
-              }
-            })
+            const response = await axios.get(url)
+            if (response.data.errcode) {
+              console.log(response.data)
+              fn(response.data.errmsg, null)
+            } else {
+              const {access_token, expires_in} = response.data
+              token.setAccessToken(access_token, expires_in)
+              sdk.accessToken = access_token
+              sdk.expireTime = expires_in
+              fn(null, sdk.accessToken)
+            }
           } else {
             fn(null, sdk.accessToken)
           }

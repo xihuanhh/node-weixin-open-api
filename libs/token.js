@@ -66,7 +66,7 @@ exports.getAccessToken = (cb) => {
     // redis
     let accessToken, expireTime
     redisClient.get(`accessToken_${appId}`, (error, reply) => {
-      accessToken = reply
+      accessToken = reply ? reply : ''
       redisClient.get(`expireTime_${appId}`, (error, reply) => {
         expireTime = reply ? reply : 0
         cb(null, {accessToken, expireTime})
