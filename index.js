@@ -1,16 +1,16 @@
 // let _ = require('lodash')
-let crypto = require('crypto')
-let http = require('request')
-let async = require('async')
-let moment = require('moment')
-let parseString = require('xml2js').parseString
-let axios = require('axios')
-let token = require('./libs/token')
+const crypto = require('crypto')
+const http = require('request')
+const async = require('async')
+const moment = require('moment')
+const parseString = require('xml2js').parseString
+const axios = require('axios')
+const token = require('./libs/token')
 
 module.exports = () => {
   return {
     init: (wxConfig) => {
-      let sdk = {
+      const sdk = {
         token: wxConfig.token,
         appId: wxConfig.appId,
         appSecret: wxConfig.appSecret,
@@ -23,9 +23,7 @@ module.exports = () => {
         redisConfig: wxConfig.redisConfig
       }
 
-
-
-      let updateToken, getToken
+      // let updateToken, getToken
 
       if (sdk.redisConfig) {
         token.setRedisStore(sdk)
@@ -33,16 +31,16 @@ module.exports = () => {
         token.setFileStore(sdk)
       }
 
-      //返回 timeStamp
-      let getTimeStamp = () => {
+      // 返回 timeStamp
+      const getTimeStamp = () => {
         return moment().format('X')
       }
 
       // private: 构造nonceStr
-      let getNonceStr = () => {
-        let $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-        let maxPos = $chars.length
-        let noceStr = ""
+      const getNonceStr = () => {
+        const $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+        const maxPos = $chars.length
+        let noceStr = ''
         for (let i = 0; i < 32; i++) {
           noceStr += $chars.charAt(Math.floor(Math.random() * maxPos))
         }
@@ -50,15 +48,15 @@ module.exports = () => {
       }
 
       // private: 参数签名
-      let generateSign = (obj) => {
-        let params = Object.keys(obj).sort().map(key => `${key}=` + obj[key])
+      const generateSign = (obj) => {
+        const params = Object.keys(obj).sort().map(key => `${key}=` + obj[key])
         return crypto.createHash('sha1').update(params.join('&')).digest('hex')
       }
 
       // exports.generateSign = generateSign
 
       // private: 刷新token
-      let getAccessToken = (fn) => {
+      const getAccessToken = (fn) => {
         // 先取一下accessToken
         token.getAccessToken(async (error, accessToken) => {
           sdk.accessToken = accessToken.accessToken
@@ -66,13 +64,13 @@ module.exports = () => {
           if (new Date().getTime() > sdk.expireTime) {
             // 如果token超时，或者没有token(expireTime 初始值为0)
             // 则开始获取token
-            let url = `${sdk.domain}/cgi-bin/token?grant_type=client_credential&appid=${sdk.appId}&secret=${sdk.appSecret}`
+            const url = `${sdk.domain}/cgi-bin/token?grant_type=client_credential&appid=${sdk.appId}&secret=${sdk.appSecret}`
             const response = await axios.get(url)
             if (response.data.errcode) {
               console.log(response.data)
               fn(response.data.errmsg, null)
             } else {
-              const {access_token, expires_in} = response.data
+              const { access_token, expires_in } = response.data
               token.setAccessToken(access_token, expires_in)
               sdk.accessToken = access_token
               sdk.expireTime = expires_in
@@ -85,7 +83,7 @@ module.exports = () => {
       }
 
       // get access token的同步版本
-      let getAccessTokenSync = () => {
+      const getAccessTokenSync = () => {
         return new Promise((resolve, reject) => {
           getAccessToken((error, result) => {
             if (error) {
@@ -97,21 +95,21 @@ module.exports = () => {
         })
       }
 
-      let getJsApiTicket = (fn) => {
+      const getJsApiTicket = (fn) => {
         // 先获取一下jsApiTicket
         token.getJSTicket((error, jsTicket) => {
           sdk.expireTimeJS = jsTicket.expireTime
           sdk.jsApiTicket = jsTicket.jsApiTicket
-          if(new Date().getTime() > sdk.expireTimeJS){
-            //如果超时了，或者还没刷新过
+          if (new Date().getTime() > sdk.expireTimeJS) {
+            // 如果超时了，或者还没刷新过
             async.series([
               getAccessToken,
               (cb) => {
-                let url = `https://api.weixin.qq.com/cgi-bin/ticket/getticket?access_token=${sdk.accessToken}&type=jsapi`
-                http.get(url, {json: true}, (error, response, body) => {
-                  if(error){
+                const url = `https://api.weixin.qq.com/cgi-bin/ticket/getticket?access_token=${sdk.accessToken}&type=jsapi`
+                http.get(url, { json: true }, (error, response, body) => {
+                  if (error) {
                     cb(error, null)
-                  }else{
+                  } else {
                     if (body.errcode) {
                       // TODO: 核实一下 有没有这个errmsg
                       cb(body.errmsg, null)
@@ -122,11 +120,11 @@ module.exports = () => {
                 })
               }
             ], (error, result) => {
-              if(error){
+              if (error) {
                 console.log('jsApiTicket Error %s', error)
                 fn(error, null)
-              }else{
-                let jsTicket = token.setJSTicket(result[1]['ticket'], result[1]['expires_in'])
+              } else {
+                const jsTicket = token.setJSTicket(result[1].ticket, result[1].expires_in)
                 sdk.jsApiTicket = jsTicket.jsApiTicket
                 sdk.expireTimeJS = jsTicket.expireTime
                 fn(null, sdk.jsApiTicket)
@@ -153,8 +151,8 @@ module.exports = () => {
 
       // 检查签名是否正确
       sdk.checkSign = (signature, timestamp, nonce, fn) => {
-        let str = [sdk.token, timestamp, nonce].sort().join('')
-        let mySign = crypto.createHash('sha1').update(str).digest('hex')
+        const str = [sdk.token, timestamp, nonce].sort().join('')
+        const mySign = crypto.createHash('sha1').update(str).digest('hex')
         if (mySign === signature) {
           fn(null, null)
         } else {
@@ -163,7 +161,7 @@ module.exports = () => {
       }
 
       sdk.text = (from, to, content) => {
-        let now = +new Date()
+        const now = +new Date()
         return `<xml><ToUserName><![CDATA[${to}]]></ToUserName><FromUserName><![CDATA[${from}]]></FromUserName><CreateTime>${now}</CreateTime><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[${content}]]></Content></xml>`
       }
 
@@ -175,8 +173,8 @@ module.exports = () => {
         async.auto({
           getAccessToken,
           upload: ['getAccessToken', (results, cb) => {
-            let url = `${wxConfig.domain}/cgi-bin/media/upload?access_token=${sdk.accessToken}&type=${type}`
-            let r = http.post(url, {
+            const url = `${wxConfig.domain}/cgi-bin/media/upload?access_token=${sdk.accessToken}&type=${type}`
+            const r = http.post(url, {
               json: true
             }, (error, response, body) => {
               if (error) {
@@ -195,14 +193,14 @@ module.exports = () => {
             })
           }]
         }, (error, result) => {
-          let now = +new Date()
+          const now = +new Date()
           if (error) {
             console.log('send media error:')
             console.log('accesstoken: %s expireTime: %s', sdk.accessToken, sdk.expireTime)
             fn(null, `<xml><ToUserName><![CDATA[${to}]]></ToUserName><FromUserName><![CDATA[${from}]]></FromUserName><CreateTime>${now}</CreateTime><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[获取失败，请重试！]]></Content></xml>`)
           } else {
             // console.log(result.upload)
-            let mediaInfo = `<Image><MediaId><![CDATA[${result.upload.media_id}]]></MediaId></Image>`
+            const mediaInfo = `<Image><MediaId><![CDATA[${result.upload.media_id}]]></MediaId></Image>`
             fn(null, `<xml><ToUserName><![CDATA[${to}]]></ToUserName><FromUserName><![CDATA[${from}]]></FromUserName><CreateTime>${now}</CreateTime><MsgType><![CDATA[${type}]]></MsgType>${mediaInfo}</xml>`)
           }
         })
@@ -268,14 +266,12 @@ module.exports = () => {
         } catch (e) {
           //
         }
-        let url = `https://api.weixin.qq.com/cgi-bin/tags/members/batchtagging?access_token=${sdk.accessToken}`
+        const url = `https://api.weixin.qq.com/cgi-bin/tags/members/batchtagging?access_token=${sdk.accessToken}`
         return axios.post(url, {
           openid_list,
           tagid
         })
       }
-
-
 
       // 用户授权 获取SNS信息 需要跳转的方式为 snsapi_userinfo
       sdk.oAuthSNS = (code, fn) => {
@@ -302,7 +298,7 @@ module.exports = () => {
             })
           },
           profile: ['auth', (results, cb) => {
-            let url = `${wxConfig.domain}/sns/userinfo?access_token=${results.auth.access_token}&openid=${results.auth.openid}&lang=zh_CN`
+            const url = `${wxConfig.domain}/sns/userinfo?access_token=${results.auth.access_token}&openid=${results.auth.openid}&lang=zh_CN`
             http.get(url, {
               json: true
             }, (error, response, body) => {
@@ -323,11 +319,11 @@ module.exports = () => {
       }
 
       sdk.getConfigParams = (url, debug, jsApiList, cb) => {
-        let appId     = sdk.appId
-        let noncestr  = getNonceStr()
-        let timestamp = getTimeStamp()
+        const appId = sdk.appId
+        const noncestr = getNonceStr()
+        const timestamp = getTimeStamp()
         getJsApiTicket((error, jsapi_ticket) => {
-          let signature = generateSign({jsapi_ticket, noncestr, timestamp, url})
+          const signature = generateSign({ jsapi_ticket, noncestr, timestamp, url })
           cb(error, {
             debug,
             appId,
@@ -344,8 +340,8 @@ module.exports = () => {
         async.auto({
           getAccessToken,
           createMenu: ['getAccessToken', (dummy, cb) => {
-            let url = `${wxConfig.domain}/cgi-bin/menu/create?access_token=${sdk.accessToken}`
-            http.post(url, {json: true, form: menuConfig}, (error, response, body) => {
+            const url = `${wxConfig.domain}/cgi-bin/menu/create?access_token=${sdk.accessToken}`
+            http.post(url, { json: true, form: menuConfig }, (error, response, body) => {
               if (error) {
                 cb(error, null)
               } else {
@@ -365,8 +361,8 @@ module.exports = () => {
         async.auto({
           getAccessToken,
           delMenu: ['getAccessToken', (dummy, cb) => {
-            let url = `${wxConfig.domain}/cgi-bin/message/template/send?access_token=${sdk.accessToken}`
-            http.post(url, {json: form}, (error, response, body) => {
+            const url = `${wxConfig.domain}/cgi-bin/message/template/send?access_token=${sdk.accessToken}`
+            http.post(url, { json: form }, (error, response, body) => {
               if (error) {
                 cb(error, null)
               } else {
@@ -386,8 +382,8 @@ module.exports = () => {
         async.auto({
           getAccessToken,
           delMenu: ['getAccessToken', (dummy, cb) => {
-            let url = `${wxConfig.domain}/cgi-bin/menu/delete?access_token=${sdk.accessToken}`
-            http.post(url, {json: true}, (error, response, body) => {
+            const url = `${wxConfig.domain}/cgi-bin/menu/delete?access_token=${sdk.accessToken}`
+            http.post(url, { json: true }, (error, response, body) => {
               if (error) {
                 cb(error, null)
               } else {
@@ -407,7 +403,7 @@ module.exports = () => {
         async.auto({
           getAccessToken,
           profile: ['getAccessToken', (dummy, cb) => {
-            let url = `${wxConfig.domain}/cgi-bin/user/info?access_token=${sdk.accessToken}&openid=${openId}&lang=zh_CN`
+            const url = `${wxConfig.domain}/cgi-bin/user/info?access_token=${sdk.accessToken}&openid=${openId}&lang=zh_CN`
             http.post(url, {
               json: true
             }, (error, response, body) => {
@@ -436,16 +432,16 @@ module.exports = () => {
         async.auto({
           getAccessToken,
           ticket: ['getAccessToken', (dummy, cb) => {
-            let url = `${wxConfig.domain}/cgi-bin/qrcode/create?access_token=${sdk.accessToken}`
+            const url = `${wxConfig.domain}/cgi-bin/qrcode/create?access_token=${sdk.accessToken}`
             http.post(url, {
               json: {
-                "action_name": "QR_LIMIT_STR_SCENE",
-                "action_info": {
-                  "scene": {
-                    "scene_str": sceneId
+                action_name: 'QR_LIMIT_STR_SCENE',
+                action_info: {
+                  scene: {
+                    scene_str: sceneId
                   }
                 }
-              },
+              }
             }, (error, response, body) => {
               if (error) {
                 cb(error, null)
@@ -462,7 +458,7 @@ module.exports = () => {
           }],
           qrCode: ['ticket', (results, cb) => {
             // 注意：这个地方不要傻逼呵呵的用${wxConfig.domain} 这个是mp.weixin.qq.com 再说一遍，这个是 mp.weixin.qq.com
-            let url = `https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=${results.ticket}`
+            const url = `https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=${results.ticket}`
             console.log(url)
             http.get(url, {
               encoding: null
@@ -496,13 +492,15 @@ module.exports = () => {
         async.auto({
           getAccessToken,
           send: ['getAccessToken', (dummy, cb) => {
-            let url = `${wxConfig.domain}/cgi-bin/message/template/send?access_token=${sdk.accessToken}`
-            http.post(url, {json: {
-              "touser": to,
-              "template_id": templateId,
-              "url": link,
-              "data": customData
-            }}, (error, response, body) => {
+            const url = `${wxConfig.domain}/cgi-bin/message/template/send?access_token=${sdk.accessToken}`
+            http.post(url, {
+              json: {
+                touser: to,
+                template_id: templateId,
+                url: link,
+                data: customData
+              }
+            }, (error, response, body) => {
               if (error) {
                 cb(error, null)
               } else {
@@ -524,7 +522,7 @@ module.exports = () => {
         if (req.session.openId) {
           next()
         } else {
-          let {code} = req.query
+          const { code } = req.query
           if (code) {
             sdk.oAuth(code, async (error, result) => {
               if (!error) {
@@ -533,13 +531,13 @@ module.exports = () => {
               } else {
                 const originUrl = new URL('http://' + req.hostname + req.originalUrl)
                 originUrl.searchParams.delete('code')
-                let searchParams = originUrl.searchParams.toString()
-                let url = `${originUrl.origin}${originUrl.pathname}?${searchParams}`
+                const searchParams = originUrl.searchParams.toString()
+                const url = `${originUrl.origin}${originUrl.pathname}?${searchParams}`
                 res.redirect(`https://open.weixin.qq.com/connect/oauth2/authorize?appid=${wxConfig.appId}&redirect_uri=${url}&response_type=code&scope=snsapi_base&state=rta#wechat_redirect`)
               }
             })
           } else {
-            let url = `http://${req.hostname}${req.originalUrl}`
+            const url = `http://${req.hostname}${req.originalUrl}`
             res.redirect(`https://open.weixin.qq.com/connect/oauth2/authorize?appid=${wxConfig.appId}&redirect_uri=${url}&response_type=code&scope=snsapi_base&state=rta#wechat_redirect`)
           }
         }
@@ -548,7 +546,7 @@ module.exports = () => {
       // 带信息的授权
       sdk.snsAuth = (req, res, next) => {
         const { URL } = require('url')
-        let {code} = req.query
+        const { code } = req.query
         if (req.session.headImageUrl) {
           // 如果session中已经加载过headImageUrl表示已经做个SNA授权
           next()
@@ -565,26 +563,26 @@ module.exports = () => {
               } else {
                 const originUrl = new URL('http://' + req.hostname + req.originalUrl)
                 originUrl.searchParams.delete('code')
-                let searchParams = originUrl.searchParams.toString()
-                let url = `${originUrl.origin}${originUrl.pathname}?${searchParams}`
+                const searchParams = originUrl.searchParams.toString()
+                const url = `${originUrl.origin}${originUrl.pathname}?${searchParams}`
                 res.redirect(`https://open.weixin.qq.com/connect/oauth2/authorize?appid=${wxConfig.appId}&redirect_uri=${url}&response_type=code&scope=snsapi_userinfo&state=rta#wechat_redirect`)
               }
             })
           } else {
-            let url = `http://${req.hostname}${req.originalUrl}`
+            const url = `http://${req.hostname}${req.originalUrl}`
             res.redirect(`https://open.weixin.qq.com/connect/oauth2/authorize?appid=${wxConfig.appId}&redirect_uri=${url}&response_type=code&scope=snsapi_userinfo&state=rta#wechat_redirect`)
           }
         }
       }
       // 仅仅在第一次接入的时候有用，以后用不上了
       sdk.verifyEcho = (req, res) => {
-        let {signature, timestamp, nonce, echostr} = req.query
+        const { signature, timestamp, nonce, echostr } = req.query
 
         sdk.checkSign(signature, timestamp, nonce, (error) => {
           if (error) {
             res.send('error')
           } else {
-            if (null === echostr) {
+            if (echostr === null) {
               res.send('error')
             } else {
               res.send(echostr)

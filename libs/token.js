@@ -1,6 +1,6 @@
 let store = ''
-let fs = require('fs')
-let redis = require("redis")
+const fs = require('fs')
+const redis = require('redis')
 
 let accessTokenFile, jsticketTokenFile, redisClient // 用来做文件存储的文件名
 let appId
@@ -9,17 +9,17 @@ exports.setFileStore = (sdk) => {
   accessTokenFile = __dirname + `/../tokens/${sdk.appId}.accessToken`
   jsticketTokenFile = __dirname + `/../tokens/${sdk.appId}.jsTicket`
 
-  let tokenFileExists = fs.existsSync(accessTokenFile)
+  const tokenFileExists = fs.existsSync(accessTokenFile)
   if (!tokenFileExists) {
-    let fh = fs.openSync(accessTokenFile, 'w')
-    fs.writeFileSync(fh, JSON.stringify({expireTime: 0, accessToken: ''}))
+    const fh = fs.openSync(accessTokenFile, 'w')
+    fs.writeFileSync(fh, JSON.stringify({ expireTime: 0, accessToken: '' }))
     fs.closeSync(fh)
   }
 
-  let jstokenFileExists = fs.existsSync(jsticketTokenFile)
+  const jstokenFileExists = fs.existsSync(jsticketTokenFile)
   if (!jstokenFileExists) {
-    let fh = fs.openSync(jsticketTokenFile, 'w')
-    fs.writeFileSync(fh, JSON.stringify({expireTime: 0, jsApiTicket: ''}))
+    const fh = fs.openSync(jsticketTokenFile, 'w')
+    fs.writeFileSync(fh, JSON.stringify({ expireTime: 0, jsApiTicket: '' }))
     fs.closeSync(fh)
   }
 
@@ -66,10 +66,10 @@ exports.getAccessToken = (cb) => {
     // redis
     let accessToken, expireTime
     redisClient.get(`accessToken_${appId}`, (error, reply) => {
-      accessToken = reply ? reply : ''
+      accessToken = reply || ''
       redisClient.get(`expireTime_${appId}`, (error, reply) => {
-        expireTime = reply ? reply : 0
-        cb(null, {accessToken, expireTime})
+        expireTime = reply || 0
+        cb(null, { accessToken, expireTime })
       })
     })
   }
@@ -89,7 +89,7 @@ exports.getJSTicket = (cb) => {
       jsApiTicket = reply
       redisClient.get(`expireTimeJS_${appId}`, (error, reply) => {
         expireTime = reply
-        cb(null, {jsApiTicket, expireTime})
+        cb(null, { jsApiTicket, expireTime })
       })
     })
   }
@@ -101,15 +101,15 @@ exports.setAccessToken = (accessToken, expireTime) => {
 
   if (store === 'file') {
     // file
-    let fh = fs.openSync(accessTokenFile, 'w')
-    fs.writeFileSync(fh, JSON.stringify({expireTime, accessToken}))
+    const fh = fs.openSync(accessTokenFile, 'w')
+    fs.writeFileSync(fh, JSON.stringify({ expireTime, accessToken }))
     fs.closeSync(fh)
-    return {expireTime, accessToken}
+    return { expireTime, accessToken }
   } else {
     // redis
     redisClient.set(`accessToken_${appId}`, accessToken)
     redisClient.set(`expireTime_${appId}`, expireTime)
-    return {expireTime, accessToken}
+    return { expireTime, accessToken }
   }
 }
 
@@ -120,14 +120,14 @@ exports.setJSTicket = (jsApiTicket, expireTime) => {
 
   if (store === 'file') {
     // file
-    let fh = fs.openSync(jsticketTokenFile, 'w')
-    fs.writeFileSync(fh, JSON.stringify({expireTime, jsApiTicket}))
+    const fh = fs.openSync(jsticketTokenFile, 'w')
+    fs.writeFileSync(fh, JSON.stringify({ expireTime, jsApiTicket }))
     fs.closeSync(fh)
-    return {expireTime, jsApiTicket}
+    return { expireTime, jsApiTicket }
   } else {
     // redis
     redisClient.set(`jsApiTicket_${appId}`, jsApiTicket)
     redisClient.set(`expireTimeJS_${appId}`, expireTime)
-    return {expireTime, jsApiTicket}
+    return { expireTime, jsApiTicket }
   }
 }
