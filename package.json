@@ -1,6 +1,6 @@
 {
   "name": "node-weixin-media-platform-api",
-  "version": "0.5.9",
+  "version": "0.6.0",
   "description": "weixin media platform common api",
   "main": "index.js",
   "scripts": {
