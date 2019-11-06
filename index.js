@@ -67,7 +67,7 @@ module.exports = () => {
             const url = `${sdk.domain}/cgi-bin/token?grant_type=client_credential&appid=${sdk.appId}&secret=${sdk.appSecret}`
             const response = await axios.get(url)
             if (response.data.errcode) {
-              console.log(response.data)
+              console.error('getAccessToken', response.data)
               fn(response.data.errmsg, null)
             } else {
               const { access_token, expires_in } = response.data
@@ -502,6 +502,7 @@ module.exports = () => {
               }
             }, (error, response, body) => {
               if (error) {
+                console.error(`sendTemplateMsg`, 'accessToken:', sdk.accessToken, 'accessToken', sdk.expireTime)
                 cb(error, null)
               } else {
                 if (body.errcode) {
