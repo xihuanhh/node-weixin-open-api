@@ -533,7 +533,7 @@ module.exports = () => {
                 const originUrl = new URL('http://' + req.hostname + req.originalUrl)
                 originUrl.searchParams.delete('code')
                 const searchParams = originUrl.searchParams.toString()
-                const url = `${originUrl.origin}${originUrl.pathname}?${searchParams}`
+                const url = encodeURIComponent(`${originUrl.origin}${originUrl.pathname}?${searchParams}`)
                 res.redirect(`https://open.weixin.qq.com/connect/oauth2/authorize?appid=${wxConfig.appId}&redirect_uri=${url}&response_type=code&scope=snsapi_base&state=rta#wechat_redirect`)
               }
             })
