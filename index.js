@@ -538,7 +538,7 @@ module.exports = () => {
               }
             })
           } else {
-            const url = `http://${req.hostname}${req.originalUrl}`
+            const url = encodeURIComponent(`http://${req.hostname}${req.originalUrl}`)
             res.redirect(`https://open.weixin.qq.com/connect/oauth2/authorize?appid=${wxConfig.appId}&redirect_uri=${url}&response_type=code&scope=snsapi_base&state=rta#wechat_redirect`)
           }
         }
